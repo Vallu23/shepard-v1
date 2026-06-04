@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "./supabaseClient";
-import { Plus, Building2, Facebook, Instagram, Youtube, Trash2 } from "lucide-react";
+import { Plus, Building2, Trash2 } from "lucide-react";
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -117,11 +117,13 @@ export default function App() {
   }
 
   function platformIcon(name) {
-    if (name === "facebook") return <Facebook size={20} />;
-    if (name === "instagram") return <Instagram size={20} />;
-    if (name === "youtube") return <Youtube size={20} />;
-    return <Building2 size={20} />;
-  }
+  if (name === "facebook") return "📘";
+  if (name === "instagram") return "📸";
+  if (name === "youtube") return "▶️";
+  if (name === "tiktok") return "🎵";
+  if (name === "linkedin") return "💼";
+  return <Building2 size={20} />;
+}
 
   if (!session) {
     return (
@@ -320,3 +322,5 @@ const styles = {
   loginBox: { width: 360, background: "#13131a", padding: 32, borderRadius: 18, border: "1px solid #2a2a38" },
   input: { width: "100%", padding: 12, marginBottom: 12, borderRadius: 10, border: "1px solid #2a2a38", background: "#1c1c26", color: "#fff", boxSizing: "border-box" },
 };
+
+
