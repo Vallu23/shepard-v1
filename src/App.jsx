@@ -12,6 +12,7 @@ export default function App() {
   const [newBrandName, setNewBrandName] = useState("");
 
   const [accounts, setAccounts] = useState([]);
+  const [connectionTests, setConnectionTests] = useState({});
   const [platform, setPlatform] = useState("facebook");
   const [accountName, setAccountName] = useState("");
   const [pageId, setPageId] = useState("");
@@ -81,6 +82,7 @@ export default function App() {
     if (error) return alert(error.message);
 
     setAccounts(data || []);
+    setConnectionTests({});
   }
 
   async function addAccount() {
@@ -116,14 +118,73 @@ export default function App() {
     loadAccounts(selectedBrand.id);
   }
 
+  async function testConnection(account) {
+    const accountId = account.id;
+
+    setConnectionTests((prev) => ({
+      ...prev,
+      [accountId]: { status: "testing" },
+    }));
+
+    const page_id = account.page_id;
+    const access_token = account.access_token;
+
+    if (!page_id || !access_token) {
+      setConnectionTests((prev) => ({
+        ...prev,
+        [accountId]: {
+          status: "failed",
+          errorMessage: "Page ID and access token are required.",
+        },
+      }));
+      return;
+    }
+
+    const url = `https://graph.facebook.com/v25.0/${page_id}?fields=id,name,followers_count&access_token=${access_token}`;
+
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (!response.ok || data.error) {
+        setConnectionTests((prev) => ({
+          ...prev,
+          [accountId]: {
+            status: "failed",
+            errorMessage: data.error?.message || "Connection failed",
+          },
+        }));
+        return;
+      }
+
+      setConnectionTests((prev) => ({
+        ...prev,
+        [accountId]: {
+          status: "connected",
+          pageName: data.name,
+          pageId: data.id,
+          followersCount: data.followers_count,
+        },
+      }));
+    } catch (err) {
+      setConnectionTests((prev) => ({
+        ...prev,
+        [accountId]: {
+          status: "failed",
+          errorMessage: err.message || "Network error",
+        },
+      }));
+    }
+  }
+
   function platformIcon(name) {
-  if (name === "facebook") return "📘";
-  if (name === "instagram") return "📸";
-  if (name === "youtube") return "▶️";
-  if (name === "tiktok") return "🎵";
-  if (name === "linkedin") return "💼";
-  return <Building2 size={20} />;
-}
+    if (name === "facebook") return "📘";
+    if (name === "instagram") return "📸";
+    if (name === "youtube") return "▶️";
+    if (name === "tiktok") return "🎵";
+    if (name === "linkedin") return "💼";
+    return <Building2 size={20} />;
+  }
 
   if (!session) {
     return (
@@ -265,24 +326,80 @@ export default function App() {
                 {accounts.length === 0 ? (
                   <p style={styles.muted}>No social accounts added yet.</p>
                 ) : (
-                  accounts.map((account) => (
-                    <div key={account.id} style={styles.accountCard}>
-                      <div style={styles.accountIcon}>{platformIcon(account.platform)}</div>
+                  accounts.map((account) => {
+                    const test = connectionTests[account.id];
 
-                      <div style={{ flex: 1 }}>
-                        <h3>{account.account_name}</h3>
-                        <p style={styles.muted}>{account.platform}</p>
-                        <p style={styles.smallText}>Page ID: {account.page_id || "Not added"}</p>
-                        <p style={styles.smallText}>
-                          Token expiry: {account.token_expires_at ? new Date(account.token_expires_at).toLocaleString() : "Not added"}
-                        </p>
+                    return (
+                      <div key={account.id} style={styles.accountCard}>
+                        <div style={styles.accountIcon}>{platformIcon(account.platform)}</div>
+
+                        <div style={{ flex: 1 }}>
+                          <div style={styles.accountCardHeader}>
+                            <div>
+                              <h3 style={{ margin: 0 }}>{account.account_name}</h3>
+                              <p style={styles.muted}>{account.platform}</p>
+                            </div>
+                            {test?.status === "connected" && (
+                              <span style={styles.statusConnected}>● Connected</span>
+                            )}
+                            {test?.status === "failed" && (
+                              <span style={styles.statusFailed}>● Failed</span>
+                            )}
+                          </div>
+
+                          <p style={styles.smallText}>Page ID: {account.page_id || "Not added"}</p>
+                          <p style={styles.smallText}>
+                            Token expiry:{" "}
+                            {account.token_expires_at
+                              ? new Date(account.token_expires_at).toLocaleString()
+                              : "Not added"}
+                          </p>
+
+                          <button
+                            type="button"
+                            style={{
+                              ...styles.testButton,
+                              opacity: test?.status === "testing" ? 0.6 : 1,
+                              cursor: test?.status === "testing" ? "wait" : "pointer",
+                            }}
+                            disabled={test?.status === "testing"}
+                            onClick={() => testConnection(account)}
+                          >
+                            {test?.status === "testing" ? "Testing…" : "Test Connection"}
+                          </button>
+
+                          {test?.status === "connected" && (
+                            <div style={styles.testResult}>
+                              <div style={styles.resultRow}>
+                                <span style={styles.resultLabel}>Page name</span>
+                                <span>{test.pageName}</span>
+                              </div>
+                              <div style={styles.resultRow}>
+                                <span style={styles.resultLabel}>Page ID</span>
+                                <span>{test.pageId}</span>
+                              </div>
+                              <div style={styles.resultRow}>
+                                <span style={styles.resultLabel}>Followers count</span>
+                                <span>
+                                  {test.followersCount != null
+                                    ? test.followersCount.toLocaleString()
+                                    : "—"}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          {test?.status === "failed" && test.errorMessage && (
+                            <p style={styles.errorText}>{test.errorMessage}</p>
+                          )}
+                        </div>
+
+                        <button style={styles.deleteButton} onClick={() => deleteAccount(account.id)}>
+                          <Trash2 size={16} />
+                        </button>
                       </div>
-
-                      <button style={styles.deleteButton} onClick={() => deleteAccount(account.id)}>
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -316,11 +433,17 @@ const styles = {
   panel: { background: "#13131a", border: "1px solid #2a2a38", borderRadius: 16, padding: 24 },
   label: { display: "block", fontSize: 12, color: "#8a8aa8", marginBottom: 6, marginTop: 12 },
   accountCard: { display: "flex", gap: 14, alignItems: "flex-start", background: "#1c1c26", border: "1px solid #2a2a38", padding: 16, borderRadius: 12, marginBottom: 12 },
-  accountIcon: { width: 42, height: 42, borderRadius: 12, background: "#252536", display: "flex", alignItems: "center", justifyContent: "center", color: "#7c5cfc" },
-  deleteButton: { background: "transparent", color: "#fc5c7d", border: "none", cursor: "pointer" },
+  accountCardHeader: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 4 },
+  accountIcon: { width: 42, height: 42, borderRadius: 12, background: "#252536", display: "flex", alignItems: "center", justifyContent: "center", color: "#7c5cfc", flexShrink: 0 },
+  testButton: { marginTop: 10, padding: "8px 14px", borderRadius: 8, border: "1px solid #7c5cfc", background: "rgba(124,92,252,0.15)", color: "#f0f0f8", fontSize: 12, cursor: "pointer" },
+  testResult: { marginTop: 12, padding: 12, background: "#13131a", borderRadius: 8, border: "1px solid #2a2a38", fontSize: 13 },
+  resultRow: { marginBottom: 8 },
+  resultLabel: { display: "block", fontSize: 10, color: "#8a8aa8", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 },
+  statusConnected: { color: "#5cf8c8", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" },
+  statusFailed: { color: "#fc5c7d", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" },
+  errorText: { marginTop: 8, fontSize: 12, color: "#fc5c7d" },
+  deleteButton: { background: "transparent", color: "#fc5c7d", border: "none", cursor: "pointer", flexShrink: 0 },
   loginPage: { minHeight: "100vh", background: "#0a0a0f", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontFamily: "Arial, sans-serif" },
   loginBox: { width: 360, background: "#13131a", padding: 32, borderRadius: 18, border: "1px solid #2a2a38" },
   input: { width: "100%", padding: 12, marginBottom: 12, borderRadius: 10, border: "1px solid #2a2a38", background: "#1c1c26", color: "#fff", boxSizing: "border-box" },
 };
-
-
